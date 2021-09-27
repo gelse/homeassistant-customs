@@ -5,8 +5,16 @@ from serial import Serial, SerialException
 from logging import Logger
 from typing import Optional, List, AnyStr
 
+from .const import (
+    LAMP_MODE,
+    INPUT_SOURCE,
+    LAMP,
+    LAMP_HOURS,
+    MODEL
+)
 
-class BaseCommand:
+
+class BaseSerialCommand:
     _command: str
     _answer: Optional[str]
     _expected: List[re.Pattern[AnyStr]]
@@ -40,7 +48,7 @@ class BaseCommand:
 
     @property
     def logger(self):
-        return self._logger or BaseCommand.PrintLogger()
+        return self._logger or BaseSerialCommand.PrintLogger()
 
     @logger.setter
     def logger(self, value: Logger):
@@ -99,7 +107,7 @@ class BaseCommand:
                 ser.close()
 
 
-class OnCommand(BaseCommand):
+class OnCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "pow=on"
@@ -107,14 +115,14 @@ class OnCommand(BaseCommand):
         self._power_needed = False
 
 
-class OffCommand(BaseCommand):
+class OffCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "pow=off"
         self.add_expected_regex("POW=(OFF)")
 
 
-class GetLampStateCommand(BaseCommand):
+class GetLampStateCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "pow=?"
@@ -122,7 +130,7 @@ class GetLampStateCommand(BaseCommand):
         self._power_needed = False
 
 
-class GetLampHoursCommand(BaseCommand):
+class GetLampHoursCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "ltim=?"
@@ -130,19 +138,19 @@ class GetLampHoursCommand(BaseCommand):
         self._power_needed = False
 
 
-class GetInputSourceCommand(BaseCommand):
+class GetInputSourceCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "sour=?"
 
 
-class GetLampModeCommand(BaseCommand):
+class GetLampModeCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "lampm=?"
 
 
-class GetModelNameCommand(BaseCommand):
+class GetModelNameCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "modelname=?"
@@ -150,7 +158,7 @@ class GetModelNameCommand(BaseCommand):
         self._power_needed = False
 
 
-class GetMuteStateCommand(BaseCommand):
+class GetMuteStateCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "mute=?"
@@ -158,9 +166,50 @@ class GetMuteStateCommand(BaseCommand):
         self.add_expected_regex(r'MUTE=(ON|OFF)')
 
 
-class GetVolumeStateCommand(BaseCommand):
+class MuteOnCommand(BaseSerialCommand):
+    def __init__(self):
+        super().__init__()
+        self._command = "mute=on"
+        self._power_needed = False
+        self.add_expected_regex(r'MUTE=(ON)')
+
+
+class MuteOffCommand(BaseSerialCommand):
+    def __init__(self):
+        super().__init__()
+        self._command = "mute=off"
+        self._power_needed = False
+        self.add_expected_regex(r'MUTE=(OFF)')
+
+
+class GetVolumeCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "vol=?"
         self._power_needed = False
         self.add_expected_regex(r'VOL=(\d+)')
+
+
+class IncreaseVolumeCommand(BaseSerialCommand):
+    def __init__(self):
+        super().__init__()
+        self._command = "vol=+"
+        self._power_needed = False
+        self.add_expected_regex(r'VOL=(\+)')
+
+
+class DecreaseVolumeCommand(BaseSerialCommand):
+    def __init__(self):
+        super().__init__()
+        self._command = "vol=-"
+        self._power_needed = False
+        self.add_expected_regex(r'VOL=(\-)')
+
+
+COMMANDS = {
+    LAMP_HOURS: GetLampHoursCommand,
+    LAMP: GetLampStateCommand,
+    MODEL: GetModelNameCommand,
+    INPUT_SOURCE: GetInputSourceCommand,
+    LAMP_MODE: GetLampModeCommand,
+}
