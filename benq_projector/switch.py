@@ -101,10 +101,10 @@ class BenQSwitch(SwitchEntity):
             INPUT_SOURCE: STATE_UNKNOWN,
             LAMP_MODE: STATE_UNKNOWN,
         }
+        self._attr_icon = ICON
 
     def update(self):
         """Get the latest state from the projector."""
-
         try:
             command = GetLampStateCommand()
             command.logger = _LOGGER
@@ -117,7 +117,7 @@ class BenQSwitch(SwitchEntity):
 
             for key in self._attributes:
                 command = COMMANDS[key]()
-                if command.power_needed and not self._attr_is_on:
+                if command.power_needed and not self.is_on:
                     continue
 
                 command.logger = _LOGGER
@@ -129,6 +129,7 @@ class BenQSwitch(SwitchEntity):
             self._attr_extra_state_attributes = self._attributes
         except Exception as exc:
             _LOGGER.error("Unexpected exception: %s", repr(exc))
+            self._attr_state = STATE_UNKNOWN
             self._attr_available = False
 
     def turn_on(self, **kwargs):
