@@ -16,24 +16,11 @@ DEFAULT_WRITE_TIMEOUT: Final = 4
 
 DEFAULT_BAUDRATE: Final = 9600
 
-LAMP_MODE: Final = "Lamp Mode"
-
 ICON: Final = "mdi:projector"
 
-INPUT_SOURCE: Final = "Input Source"
-
+# attributes
 LAMP: Final = "Lamp"
 LAMP_HOURS: Final = "Lamp Hours"
-
+INPUT_SOURCE: Final = "Input Source"
 MODEL: Final = "Model"
-
-# Commands known to the projector
-CMD_DICT: Final[dict[str, str]] = {
-    LAMP: "\r*pow=?#\r",
-    LAMP_HOURS: "\r*ltim=?#\r",
-    INPUT_SOURCE: "\r*sour=?#\r",
-    LAMP_MODE: "\r*lampm=?#\r",
-    MODEL: "\r*modelname=?#\r",
-    STATE_ON: "\r*pow=on#\r",
-    STATE_OFF: "\r*pow=off#\r",
-}
+LAMP_MODE: Final = "Lamp Mode"

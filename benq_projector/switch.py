@@ -19,10 +19,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .validator import socket
-from .messages import GetLampStateCommand
+from .messages import *
 
 from .const import (
-    CMD_DICT,
     CONF_WRITE_TIMEOUT,
     DEFAULT_NAME,
     DEFAULT_TIMEOUT,
@@ -32,11 +31,20 @@ from .const import (
     INPUT_SOURCE,
     LAMP,
     LAMP_HOURS,
+    MODEL,
     DEFAULT_BAUDRATE,
     CONF_BAUDRATE,
     CONF_TIMEOUT,
     CONF_SOCKET
 )
+
+COMMANDS = {
+    LAMP_HOURS: GetLampHoursCommand,
+    LAMP: GetLampStateCommand,
+    MODEL: GetModelNameCommand,
+    INPUT_SOURCE: GetInputSourceCommand,
+    LAMP_MODE: GetLampModeCommand,
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,80 +102,49 @@ class BenQSwitch(SwitchEntity):
             LAMP_MODE: STATE_UNKNOWN,
         }
 
-    def _write_read(self, msg):
-        """Write to the projector and read the return."""
-
-        ret = ""
-        # Sometimes the projector won't answer for no reason or the projector
-        # was disconnected during runtime.
-        # This way the projector can be reconnected and will still work
-        try:
-            if not self.ser.is_open:
-                _LOGGER.debug("Connecting to %s", self._serial_port)
-                self.ser.open()
-            _LOGGER.debug("sending <%s>", repr(msg))
-            self.ser.write(msg.encode("ascii"))
-
-            # the first answer is the question
-            ret = self.ser.read_until()
-            _LOGGER.debug("ignored message: %s", repr(ret))
-            # the second answer is what we want
-            ret = self.ser.read_until().decode("ascii")
-
-        except serial.SerialException:
-            _LOGGER.error("Problem communicating with %s", self._serial_port)
-        self.ser.close()
-        return ret
-
-    def _write_read_format(self, msg):
-        """Write msg, obtain answer and format output."""
-        # answers are formatted as ***\answer\r***
-        answer = self._write_read(msg)
-        _LOGGER.debug("analyzing answer: %s", repr(answer))
-        if answer == "*Block item#\r\n":
-            return STATE_UNKNOWN
-        match = re.search(r"=(.+)#", answer)
-        if match:
-            return match.group(1)
-        _LOGGER.error("could not analyze %s", repr(answer))
-        return STATE_UNKNOWN
-
     def update(self):
         """Get the latest state from the projector."""
 
         try:
             command = GetLampStateCommand()
             command.logger = _LOGGER
-            command.execute(self.ser)
+            if not command.execute(self.ser):
+                _LOGGER.error("Could not get state of device.")
+                self._attr_available = False
+                return
+            self._attr_available = True
+            self._attr_is_on = command.answer == "ON"
 
-        answer = self._write_read_format(CMD_DICT[LAMP])
-        _LOGGER.debug("<update> answer is: %s", repr(answer))
-        if answer == "ON":
-            self._attr_is_on = True
-            self._attr_available = True
-        elif answer == "OFF":
-            self._attr_is_on = False
-            self._attr_available = True
-        else:
-            _LOGGER.warning("unknown status: %s", repr(answer))
+            for key in self._attributes:
+                command = COMMANDS[key]()
+                if command.power_needed and not self._attr_is_on:
+                    continue
+
+                command.logger = _LOGGER
+                if not command.execute(self.ser):
+                    _LOGGER.error("Could not get value for '%s'.", key)
+                    continue
+                self._attributes[key] = command.answer
+
+            self._attr_extra_state_attributes = self._attributes
+        except Exception as exc:
+            _LOGGER.error("Unexpected exception: %s", repr(exc))
             self._attr_available = False
-
-        for key in self._attributes:
-            msg = CMD_DICT.get(key)
-            if msg:
-                answer = self._write_read_format(msg)
-                _LOGGER.debug("Answer to <%s>: %s", repr(msg), repr(answer))
-                self._attributes[key] = answer
-        self._attr_extra_state_attributes = self._attributes
 
     def turn_on(self, **kwargs):
         """Turn the projector on."""
-        msg = CMD_DICT[STATE_ON]
-        self._write_read(msg)
+        cmd = OnCommand()
+        cmd.logger = _LOGGER
+        if not cmd.execute(self.ser):
+            _LOGGER.error("Error while turning beamer on.")
+            return
         self._attr_is_on = True
 
     def turn_off(self, **kwargs):
         """Turn the projector off."""
-        msg = CMD_DICT[STATE_OFF]
-        self._write_read(msg)
+        cmd = OffCommand()
+        cmd.logger = _LOGGER
+        if not cmd.execute(self.ser):
+            _LOGGER.error("Error while turning beamer off.")
+            return
         self._attr_is_on = False

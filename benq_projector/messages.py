@@ -9,33 +9,53 @@ from typing import Optional, List, AnyStr
 class BaseCommand:
     _command: str
     _answer: Optional[str]
-    _expected: Optional[List[re.Pattern[AnyStr]]]
+    _expected: List[re.Pattern[AnyStr]]
     _logger: Optional[Logger]
+    _power_needed: bool
+
+    class PrintLogger:
+        def __print__(self, message: str, *args):
+            if not args:
+                print(message)
+            print(message, args)
+
+        def error(self, message: str, *args):
+            self.__print__("ERROR: " + message, args)
+
+        def debug(self, message: str, *args):
+            self.__print__("DEBUG: " + message, args)
+
+        def info(self, message: str, *args):
+            self.__print__("INFO: " + message, args)
+
+        def warn(self, message: str, *args):
+            self.__print__("WARN: " + message, args)
 
     def __init__(self):
         self._command = ""
         self._logger = None
         self._answer = None
-        self._expected = None
+        self._expected = []
+        self._power_needed = True
 
     @property
     def logger(self):
-        return self._logger
+        return self._logger or BaseCommand.PrintLogger()
 
     @logger.setter
     def logger(self, value: Logger):
         self._logger = value
 
     @property
-    def command(self):
-        return self._command
-
-    @property
     def answer(self):
         return self._answer
 
+    @property
+    def power_needed(self):
+        return self._power_needed
+
     def add_expected_regex(self, regex: str):
-        self._expected.append(re.compile('\\*' + regex + '#\\r\\n'))
+        self._expected.append(re.compile(r'\*' + regex + r'#\r\n'))
 
     def __repr__(self):
         return "\r*" + self._command + "#\r"
@@ -43,15 +63,24 @@ class BaseCommand:
     def execute(self, ser: Serial):
         try:
             if not ser.is_open:
+                self.logger.debug("connecting to serial.")
                 ser.open()
-            self._logger.debug("sending <%s>", repr(self))
+            self.logger.debug("sending <%s>.", repr(self).replace('\r', r'\r'))
             ser.write(repr(self).encode("ascii"))
-            ser.read_until()
+            self.logger.debug("reading first answer.")
+            answer_to_skip = ser.read_until()
+            self.logger.debug("first answer line: <%s>.", repr(answer_to_skip))
+            self.logger.debug("reading second answer.")
             raw_answer = ser.read_until().decode("ascii")
+            self.logger.debug("second answer line: <%s>.", repr(raw_answer))
+            ser.close()
+            self.logger.debug("parsing %s expections.", len(self._expected))
             for expected in self._expected:
                 match = expected.match(raw_answer)
                 if match:
+                    self.logger.debug("match found!")
                     self._answer = match.group(1)
+                    self.logger.debug("match saved: %s", self._answer)
                     break
             if not self._answer:
                 self._answer = raw_answer
@@ -65,31 +94,40 @@ class BaseCommand:
             return False
         else:
             return True
+        finally:
+            if ser.is_open:
+                ser.close()
 
 
 class OnCommand(BaseCommand):
     def __init__(self):
         super().__init__()
         self._command = "pow=on"
+        self.add_expected_regex("POW=(ON)")
+        self._power_needed = False
 
 
 class OffCommand(BaseCommand):
     def __init__(self):
         super().__init__()
         self._command = "pow=off"
-        self.add_expected_regex("POW=(ON|OFF)")
+        self.add_expected_regex("POW=(OFF)")
 
 
 class GetLampStateCommand(BaseCommand):
     def __init__(self):
         super().__init__()
         self._command = "pow=?"
+        self.add_expected_regex("POW=(ON|OFF)")
+        self._power_needed = False
 
 
 class GetLampHoursCommand(BaseCommand):
     def __init__(self):
         super().__init__()
         self._command = "ltim=?"
+        self.add_expected_regex(r'LTIM=(\d+)')
+        self._power_needed = False
 
 
 class GetInputSourceCommand(BaseCommand):
@@ -108,16 +146,21 @@ class GetModelNameCommand(BaseCommand):
     def __init__(self):
         super().__init__()
         self._command = "modelname=?"
+        self.add_expected_regex(r'MODELNAME=(\w+)')
+        self._power_needed = False
 
 
 class GetMuteStateCommand(BaseCommand):
     def __init__(self):
         super().__init__()
         self._command = "mute=?"
+        self._power_needed = False
+        self.add_expected_regex(r'MUTE=(ON|OFF)')
 
 
 class GetVolumeStateCommand(BaseCommand):
     def __init__(self):
         super().__init__()
         self._command = "vol=?"
-
+        self._power_needed = False
+        self.add_expected_regex(r'VOL=(\d+)')
