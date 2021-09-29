@@ -10,7 +10,9 @@ from .const import (
     INPUT_SOURCE,
     LAMP,
     LAMP_HOURS,
-    MODEL
+    MODEL,
+    VOLUME,
+    MUTED
 )
 
 
@@ -142,12 +144,14 @@ class GetInputSourceCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "sour=?"
+        self.add_expected_regex(r'SOUR=(\w+)')
 
 
 class GetLampModeCommand(BaseSerialCommand):
     def __init__(self):
         super().__init__()
         self._command = "lampm=?"
+        self.add_expected_regex(r'LAMPM=(\w+)')
 
 
 class GetModelNameCommand(BaseSerialCommand):
@@ -206,10 +210,19 @@ class DecreaseVolumeCommand(BaseSerialCommand):
         self.add_expected_regex(r'VOL=(\-)')
 
 
+class CustomCommand(BaseSerialCommand):
+    def __init__(self, command: str):
+        super().__init__()
+        self._command = command
+        self._power_needed = False
+
+
 COMMANDS = {
     LAMP_HOURS: GetLampHoursCommand,
     LAMP: GetLampStateCommand,
     MODEL: GetModelNameCommand,
     INPUT_SOURCE: GetInputSourceCommand,
     LAMP_MODE: GetLampModeCommand,
+    VOLUME: GetVolumeCommand,
+    MUTED: GetMuteStateCommand
 }
