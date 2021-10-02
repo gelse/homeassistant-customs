@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from typing import Final
 
-DOMAIN: Final = "benq_projector"
+DOMAIN: Final = "socket_projector"
 
 CONF_WRITE_TIMEOUT: Final = "write_timeout"
 CONF_BAUDRATE: Final = "baudrate"
 CONF_TIMEOUT: Final = "timeout"
 CONF_SOCKET: Final = "socket"
+CONF_NAME: Final = "name"
+CONF_ID: Final = "id"
 
 ICON: Final = "mdi:projector"
 

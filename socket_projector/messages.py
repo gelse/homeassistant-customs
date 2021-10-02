@@ -70,7 +70,7 @@ class BaseSerialCommand:
     def __repr__(self):
         return "\r*" + self._command + "#\r"
 
-    def execute(self, ser: Serial):
+    def execute(self, ser: Serial) -> bool:
         try:
             if not ser.is_open:
                 self.logger.debug("connecting to serial.")
