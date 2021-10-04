@@ -3,7 +3,8 @@ import re
 
 from serial import Serial, SerialException
 from logging import Logger
-from typing import Optional, List, AnyStr
+from typing import Optional, List, AnyStr, Union
+from abc import ABC
 
 from .const import (
     LAMP_MODE,
@@ -16,11 +17,45 @@ from .const import (
 )
 
 
-class BaseSerialCommand:
+class ProjectorCommandConfiguration(ABC):
+    command_template: str
+    response_template: str
+
+    def __init__(self,
+                 command_template: str,
+                 response_template: str):
+        self.command_template = command_template
+        self.response_template = response_template
+
+
+class ProjectorStateCommandConfiguration(ProjectorCommandConfiguration):
+    pow_on_command: str
+    pow_off_command: str
+    pow_state_qry: str
+    pow_state_on_value: str
+    pow_state_off_value: str
+
+    def __init__(self,
+                 command_template: str,
+                 response_template: str,
+                 pow_on_command: str,
+                 pow_off_command: str,
+                 pow_state_query: str,
+                 pow_state_on_value: str,
+                 pow_state_off_value: str):
+        super().__init__(command_template, response_template)
+        self.pow_on_command = pow_on_command
+        self.pow_off_command = pow_off_command
+        self.pow_state_qry = pow_state_query
+        self.pow_state_on_value = pow_state_on_value
+        self.pow_state_off_value = pow_state_off_value
+
+
+class BaseSerialCommand(ABC):
+    _command_configuration: ProjectorCommandConfiguration
     _command: str
-    _answer: Optional[str]
-    _expected: List[re.Pattern[AnyStr]]
     _logger: Optional[Logger]
+    _answer: Optional[str]
     _power_needed: bool
 
     class PrintLogger:
@@ -41,15 +76,17 @@ class BaseSerialCommand:
         def warn(self, message: str, *args):
             self.__print__("WARN: " + message, args)
 
-    def __init__(self):
+    def __init__(self,
+                 command_configuration: ProjectorCommandConfiguration):
+        self._command_configuration = command_configuration
         self._command = ""
         self._logger = None
         self._answer = None
-        self._expected = []
         self._power_needed = True
+        self._answer_template = re.compile(command_configuration.response_template)
 
     @property
-    def logger(self):
+    def logger(self) -> Union[Logger, PrintLogger]:
         return self._logger or BaseSerialCommand.PrintLogger()
 
     @logger.setter
@@ -57,172 +94,164 @@ class BaseSerialCommand:
         self._logger = value
 
     @property
-    def answer(self):
+    def answer(self) -> str:
         return self._answer
 
     @property
-    def power_needed(self):
+    def power_needed(self) -> bool:
         return self._power_needed
 
-    def add_expected_regex(self, regex: str):
-        self._expected.append(re.compile(r'\*' + regex + r'#\r\n'))
-
-    def __repr__(self):
-        return "\r*" + self._command + "#\r"
+    def __repr__(self) -> str:
+        return self._command_configuration.command_template.format(self._command)
+#        return "\r*" + self._command + "#\r"
 
     def execute(self, ser: Serial) -> bool:
         try:
             if not ser.is_open:
                 self.logger.debug("connecting to serial.")
                 ser.open()
-            self.logger.debug("sending <%s>.", repr(self).replace('\r', r'\r'))
-            ser.write(repr(self).encode("ascii"))
-            self.logger.debug("reading first answer.")
+            self.logger.debug('sending <%s>.', repr(self).replace('\r', r'\r'))
+            ser.write(repr(self).encode('ascii'))
+            self.logger.debug('reading first answer.')
             answer_to_skip = ser.read_until()
-            self.logger.debug("first answer line: <%s>.", repr(answer_to_skip))
-            self.logger.debug("reading second answer.")
-            raw_answer = ser.read_until().decode("ascii")
-            self.logger.debug("second answer line: <%s>.", repr(raw_answer))
+            self.logger.debug('first answer line: <%s>.', repr(answer_to_skip))
+            self.logger.debug('reading second answer.')
+            raw_answer = ser.read_until().decode('ascii')
+            self.logger.debug('second answer line: <%s>.', repr(raw_answer))
             ser.close()
-            self.logger.debug("parsing %s expections.", len(self._expected))
-            for expected in self._expected:
-                match = expected.match(raw_answer)
-                if match:
-                    self.logger.debug("match found!")
-                    self._answer = match.group(1)
-                    self.logger.debug("match saved: %s", self._answer)
-                    break
-            if not self._answer:
-                self._answer = raw_answer
-                return not any(self._expected)
+            self.logger.debug('parsing answer.')
 
+            match = self._answer_template.match(raw_answer)
+            if match:
+                self.logger.debug("match found!")
+                self._answer = match.group(1)
+                self.logger.debug("match saved: %s", self._answer)
+                return True
+            else:
+                self._answer = raw_answer
+                return False
         except SerialException as serialException:
             self.logger.error("exception happened when communicating:\n%s", serialException)
             return False
         except:
             self.logger.error("unexpected error: %s", sys.exc_info()[0])
             return False
-        else:
-            return True
         finally:
             if ser.is_open:
                 ser.close()
 
 
 class OnCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "pow=on"
-        self.add_expected_regex("POW=(ON)")
+    def __init__(self, conf: ProjectorStateCommandConfiguration):
+        super().__init__(conf)
+        self._command = conf.pow_on_command
         self._power_needed = False
 
 
 class OffCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "pow=off"
-        self.add_expected_regex("POW=(OFF)")
+    def __init__(self, conf: ProjectorStateCommandConfiguration):
+        super().__init__(conf)
+        self._command = conf.pow_off_command
 
 
 class GetLampStateCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "pow=?"
-        self.add_expected_regex("POW=(ON|OFF)")
+    def __init__(self, conf: ProjectorStateCommandConfiguration):
+        super().__init__(conf)
+        self._command = conf.pow_state_qry
         self._power_needed = False
 
-
-class GetLampHoursCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "ltim=?"
-        self.add_expected_regex(r'LTIM=(\d+)')
-        self._power_needed = False
-
-
-class GetInputSourceCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "sour=?"
-        self.add_expected_regex(r'SOUR=(\w+)')
-
-
-class GetLampModeCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "lampm=?"
-        self.add_expected_regex(r'LAMPM=(\w+)')
-
-
-class GetModelNameCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "modelname=?"
-        self.add_expected_regex(r'MODELNAME=(\w+)')
-        self._power_needed = False
-
-
-class GetMuteStateCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "mute=?"
-        self._power_needed = False
-        self.add_expected_regex(r'MUTE=(ON|OFF)')
-
-
-class MuteOnCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "mute=on"
-        self._power_needed = False
-        self.add_expected_regex(r'MUTE=(ON)')
-
-
-class MuteOffCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "mute=off"
-        self._power_needed = False
-        self.add_expected_regex(r'MUTE=(OFF)')
-
-
-class GetVolumeCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "vol=?"
-        self._power_needed = False
-        self.add_expected_regex(r'VOL=(\d+)')
-
-
-class IncreaseVolumeCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "vol=+"
-        self._power_needed = False
-        self.add_expected_regex(r'VOL=(\+)')
-
-
-class DecreaseVolumeCommand(BaseSerialCommand):
-    def __init__(self):
-        super().__init__()
-        self._command = "vol=-"
-        self._power_needed = False
-        self.add_expected_regex(r'VOL=(\-)')
-
-
-class CustomCommand(BaseSerialCommand):
-    def __init__(self, command: str):
-        super().__init__()
-        self._command = command
-        self._power_needed = False
-
-
-COMMANDS = {
-    LAMP_HOURS: GetLampHoursCommand,
-    LAMP: GetLampStateCommand,
-    MODEL: GetModelNameCommand,
-    INPUT_SOURCE: GetInputSourceCommand,
-    LAMP_MODE: GetLampModeCommand,
-    VOLUME: GetVolumeCommand,
-    MUTED: GetMuteStateCommand
-}
+#
+# class GetLampHoursCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "ltim=?"
+#         self.__add_expected_regex(r'LTIM=(\d+)')
+#         self._power_needed = False
+#
+#
+# class GetInputSourceCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "sour=?"
+#         self.__add_expected_regex(r'SOUR=(\w+)')
+#
+#
+# class GetLampModeCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "lampm=?"
+#         self.__add_expected_regex(r'LAMPM=(\w+)')
+#
+#
+# class GetModelNameCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "modelname=?"
+#         self.__add_expected_regex(r'MODELNAME=(\w+)')
+#         self._power_needed = False
+#
+#
+# class GetMuteStateCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "mute=?"
+#         self._power_needed = False
+#         self.__add_expected_regex(r'MUTE=(ON|OFF)')
+#
+#
+# class MuteOnCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "mute=on"
+#         self._power_needed = False
+#         self.__add_expected_regex(r'MUTE=(ON)')
+#
+#
+# class MuteOffCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "mute=off"
+#         self._power_needed = False
+#         self.__add_expected_regex(r'MUTE=(OFF)')
+#
+#
+# class GetVolumeCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "vol=?"
+#         self._power_needed = False
+#         self.__add_expected_regex(r'VOL=(\d+)')
+#
+#
+# class IncreaseVolumeCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "vol=+"
+#         self._power_needed = False
+#         self.__add_expected_regex(r'VOL=(\+)')
+#
+#
+# class DecreaseVolumeCommand(BaseSerialCommand):
+#     def __init__(self):
+#         super().__init__()
+#         self._command = "vol=-"
+#         self._power_needed = False
+#         self.__add_expected_regex(r'VOL=(\-)')
+#
+#
+# class CustomCommand(BaseSerialCommand):
+#     def __init__(self, command: str):
+#         super().__init__()
+#         self._command = command
+#         self._power_needed = False
+#
+#
+# COMMANDS = {
+#     LAMP_HOURS: GetLampHoursCommand,
+#     LAMP: GetLampStateCommand,
+#     MODEL: GetModelNameCommand,
+#     INPUT_SOURCE: GetInputSourceCommand,
+#     LAMP_MODE: GetLampModeCommand,
+#     VOLUME: GetVolumeCommand,
+#     MUTED: GetMuteStateCommand
+# }

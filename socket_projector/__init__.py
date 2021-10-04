@@ -7,7 +7,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN, CONF_TIMEOUT, CONF_BAUDRATE, CONF_SOCKET, CONF_NAME, CONF_ID
-from .hub import Projector
+from .hub import Projector, ProjectorConfiguration
 
 # List of platforms to support. There should be a matching .py file for each,
 # eg <cover.py> and <sensor.py>
@@ -28,12 +28,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Hello World from a config entry."""
     # Store an instance of the "connecting" class that does the work of speaking
     # with your actual devices.
-    hass.data[DOMAIN][entry.entry_id] = Projector(
-        projector_id=entry.data[CONF_ID],
+
+    projector_configuration = ProjectorConfiguration(
         socket_url=entry.data[CONF_SOCKET],
         timeout=entry.data[CONF_TIMEOUT],
-        write_timeout=entry.data[CONF_TIMEOUT],
-        baudrate=entry.data[CONF_BAUDRATE])
+        baudrate=entry.data[CONF_BAUDRATE]
+    )
+
+    hass.data[DOMAIN][entry.entry_id] = Projector(
+        projector_id=entry.data[CONF_ID],
+        projector_configuration=projector_configuration
+        )
 
     # This creates each HA object for each platform your device requires.
     # It's done by calling the `async_setup_entry` function in each platform module.
