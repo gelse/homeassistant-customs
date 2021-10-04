@@ -1,9 +1,10 @@
 {
-  "domain": "benq_projector",
-  "name": "BenQ Projector",
+  "domain": "socket_projector",
+  "name": "Socket Projector",
   "documentation": "None",
   "requirements": ["pyserial==3.5"],
   "codeowners": [],
   "iot_class": "local_polling",
-  "version": "0.0.1"
+  "version": "0.0.2",
+  "config_flow": "true"
 }
