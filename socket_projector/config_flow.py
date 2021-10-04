@@ -10,12 +10,10 @@ import re
 
 from .const import *
 
-
 _LOGGER = logging.getLogger(__name__)
 
 
 async def validate_input(hass: HomeAssistant, data: dict) -> dict[str, Any]:
-
     url = data[CONF_SOCKET]
     if not urlparse(url).scheme in ['http', 'socket']:
         raise InvalidHost
@@ -57,14 +55,21 @@ class BenqProjectorOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id='init',
                                     data_schema=vol.Schema({
                                         vol.Optional(CONF_NAME, default=self.config_entry.options.get(CONF_NAME)): str,
-                                        vol.Optional(CONF_BAUDRATE, default=self.config_entry.options.get(CONF_BAUDRATE)): vol.In([2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200]),
+                                        vol.Optional(CONF_BAUDRATE, default=self.config_entry.options.get(CONF_BAUDRATE)): vol.In(
+                                            [2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200]),
                                         vol.Optional(CONF_TIMEOUT, default=self.config_entry.options.get(CONF_TIMEOUT)): vol.All(int, vol.Range(1, 10))
                                     }),
                                     errors=errors)
 
 
 class BenqProjectorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    init_info: Optional[dict[str, Any]]
+
+    def __init__(self):
+        self.init_info = {}
+
     """Config flow for a Benq projector connected via Serial"""
+
     async def async_step_user(self, user_input: Optional[dict[str, Any]] = None) -> data_entry_flow.FlowResult:
         errors = {}
         if user_input is not None:
@@ -73,7 +78,13 @@ class BenqProjectorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(info[CONF_ID])
                 self._abort_if_unique_id_configured()
                 user_input[CONF_ID] = info[CONF_ID]
-                return self.async_create_entry(title=info['title'], data=user_input)
+                if user_input[CONF_FLOW_COMMAND_SWITCH]:
+                    user_input['title'] = info['title']
+                    self.init_info = user_input
+                    return await self.async_step_user_state()
+                final_userinput_dict = {**user_input, **CONF_STATE_DEFAULTS}
+                _LOGGER.debug('Finished configuration with the following values: \n%s', final_userinput_dict)
+                return self.async_create_entry(title=info['title'], data=final_userinput_dict)
             except InvalidHost:
                 errors['host'] = 'cannot_connect'
             except Exception:
@@ -85,24 +96,29 @@ class BenqProjectorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                         vol.Required(CONF_SOCKET, msg='Socket'): str,
                                         vol.Optional(CONF_NAME, msg='Name', default='My projector'): str,
                                         vol.Optional(CONF_BAUDRATE, msg='Baudrate', default=9600): vol.In([2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200]),
-                                        vol.Optional(CONF_TIMEOUT, msg='Timeout', default=1): vol.All(int, vol.Range(1, 10))
+                                        vol.Optional(CONF_TIMEOUT, msg='Timeout', default=1): vol.All(int, vol.Range(1, 10)),
+                                        vol.Optional(CONF_FLOW_COMMAND_SWITCH, msg='Advanced configuration?', default=False): bool
                                     }),
                                     errors=errors)
 
     async def async_step_user_state(self, user_input: Optional[dict[str, Any]] = None) -> data_entry_flow.FlowResult:
         errors = {}
-        return self.async_show_form(step_id='user_power_state',
+        if user_input is not None:
+            final_userinput_dict = {**self.init_info, **user_input}
+            _LOGGER.debug('Finished configuration with the following values: \n%s', final_userinput_dict)
+            return self.async_create_entry(title=self.init_info['title'], data=final_userinput_dict)
+
+        return self.async_show_form(step_id='user_state',
                                     data_schema=vol.Schema({
-                                        vol.Required(CONF_COMMAND_TEMPLATE, msg='Command template', default='\r*{}#\r'): str,
-                                        vol.Required(CONF_POW_ON_CMD, msg='Power on command', default='pow=on'): str,
-                                        vol.Required(CONF_POW_OFF_CMD, msg='Power off command', default='pow=off'): str,
-                                        vol.Required(CONF_POW_STATE_QRY, msg='Power state query command.', default='pow=?'): str,
-                                        vol.Required(CONF_POW_STATE_TMPL, msg='Power state answer template.', default='*POW=(ON|OFF)#'): str,
-                                        vol.Required(CONF_POW_ON_STATE, msg='Power state ON group value.', default='ON'): str,
-                                        vol.Required(CONF_POW_OFF_STATE, msg='Power state OFF group value.', default='OFF'): str,
+                                        vol.Required(CONF_COMMAND_TEMPLATE, msg='Command template', default=CONF_STATE_DEFAULTS[CONF_COMMAND_TEMPLATE]): str,
+                                        vol.Required(CONF_POW_ON_CMD, msg='Power on command', default=CONF_STATE_DEFAULTS[CONF_POW_ON_CMD]): str,
+                                        vol.Required(CONF_POW_OFF_CMD, msg='Power off command', default=CONF_STATE_DEFAULTS[CONF_POW_OFF_CMD]): str,
+                                        vol.Required(CONF_POW_STATE_QRY, msg='Power state query command.', default=CONF_STATE_DEFAULTS[CONF_POW_STATE_QRY]): str,
+                                        vol.Required(CONF_POW_STATE_TMPL, msg='Power state answer template.', default=CONF_STATE_DEFAULTS[CONF_POW_STATE_TMPL]): str,
+                                        vol.Required(CONF_POW_ON_STATE, msg='Power state ON group value.', default=CONF_STATE_DEFAULTS[CONF_POW_ON_STATE]): str,
+                                        vol.Required(CONF_POW_OFF_STATE, msg='Power state OFF group value.', default=CONF_STATE_DEFAULTS[CONF_POW_OFF_STATE]): str,
                                     }),
                                     errors=errors)
-
 
     @staticmethod
     def async_get_options_flow(config_entry):

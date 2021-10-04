@@ -11,14 +11,21 @@ from .messages import ProjectorStateCommandConfiguration
 
 
 class ProjectorConfiguration:
+    __socket_url: str
+    __timeout: int
+    __baudrate: int
+    __statecommandconfig: ProjectorStateCommandConfiguration
+
     def __init__(self,
                  socket_url: str,
                  timeout: int,
-                 baudrate: int) -> None:
+                 baudrate: int,
+                 statecommandconfig: ProjectorStateCommandConfiguration) -> None:
         self.__socket_url = socket_url
         self.__timeout = timeout
         self.__write_timeout = timeout
         self.__baudrate = baudrate
+        self.__statecommandconfig = statecommandconfig
 
     @property
     def socketurl(self) -> str:
@@ -36,16 +43,9 @@ class ProjectorConfiguration:
     def baudrate(self):
         return self.__baudrate
 
-
-config = ProjectorStateCommandConfiguration(
-    command_template='\r*{}#\r',
-    response_template=r'\*POW=(ON|OFF)#',
-    pow_on_command='pow=on',
-    pow_off_command='pow=off',
-    pow_state_query='pow=?',
-    pow_state_on_value='ON',
-    pow_state_off_value='OFF'
-)
+    @property
+    def statecommandconfig(self):
+        return self.__statecommandconfig
 
 
 class Projector:
@@ -85,20 +85,20 @@ class Projector:
 
     async def get_state(self) -> Optional[bool]:
         self.__logger.debug("Called get_state.")
-        cmd = GetLampStateCommand(config)
+        cmd = GetLampStateCommand(self.projector_configuration.statecommandconfig)
         cmd.logger = self.__logger
         if not cmd.execute(self.ser):
             self.__logger.error("Error while getting Lamp state.")
-        if cmd.answer == config.pow_state_on_value:
+        if cmd.answer == self.projector_configuration.statecommandconfig.pow_state_on_value:
             return True
-        if cmd.answer == config.pow_state_off_value:
+        if cmd.answer == self.projector_configuration.statecommandconfig.pow_state_off_value:
             return False
         return None
 
     async def turn_on(self) -> bool:
         """Turn the projector on."""
         self.__logger.debug("Called turn_on.")
-        cmd = OnCommand(config)
+        cmd = OnCommand(self.projector_configuration.statecommandconfig)
         cmd.logger = self.__logger
         if not cmd.execute(self.ser):
             self.__logger.error("Error while turning beamer on.")
@@ -108,7 +108,7 @@ class Projector:
     async def turn_off(self) -> bool:
         """Turn the projector off."""
         self.__logger.debug("Called turn_off.")
-        cmd = OffCommand(config)
+        cmd = OffCommand(self.projector_configuration.statecommandconfig)
         cmd.logger = self.__logger
         if not cmd.execute(self.ser):
             self.__logger.error("Error while turning beamer off.")

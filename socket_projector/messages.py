@@ -6,16 +6,6 @@ from logging import Logger
 from typing import Optional, List, AnyStr, Union
 from abc import ABC
 
-from .const import (
-    LAMP_MODE,
-    INPUT_SOURCE,
-    LAMP,
-    LAMP_HOURS,
-    MODEL,
-    VOLUME,
-    MUTED
-)
-
 
 class ProjectorCommandConfiguration(ABC):
     command_template: str
@@ -77,9 +67,10 @@ class BaseSerialCommand(ABC):
             self.__print__("WARN: " + message, args)
 
     def __init__(self,
+                 command: str,
                  command_configuration: ProjectorCommandConfiguration):
         self._command_configuration = command_configuration
-        self._command = ""
+        self._command = command
         self._logger = None
         self._answer = None
         self._power_needed = True
@@ -101,17 +92,16 @@ class BaseSerialCommand(ABC):
     def power_needed(self) -> bool:
         return self._power_needed
 
-    def __repr__(self) -> str:
+    def get_command(self) -> str:
         return self._command_configuration.command_template.format(self._command)
-#        return "\r*" + self._command + "#\r"
 
     def execute(self, ser: Serial) -> bool:
         try:
             if not ser.is_open:
                 self.logger.debug("connecting to serial.")
                 ser.open()
-            self.logger.debug('sending <%s>.', repr(self).replace('\r', r'\r'))
-            ser.write(repr(self).encode('ascii'))
+            self.logger.debug('sending <%s>.', repr(self.get_command()))
+            ser.write(self.get_command().encode('ascii'))
             self.logger.debug('reading first answer.')
             answer_to_skip = ser.read_until()
             self.logger.debug('first answer line: <%s>.', repr(answer_to_skip))
@@ -134,7 +124,7 @@ class BaseSerialCommand(ABC):
             self.logger.error("exception happened when communicating:\n%s", serialException)
             return False
         except:
-            self.logger.error("unexpected error: %s", sys.exc_info()[0])
+            self.logger.error("unexpected error: %s", sys.exc_info())
             return False
         finally:
             if ser.is_open:
@@ -143,21 +133,18 @@ class BaseSerialCommand(ABC):
 
 class OnCommand(BaseSerialCommand):
     def __init__(self, conf: ProjectorStateCommandConfiguration):
-        super().__init__(conf)
-        self._command = conf.pow_on_command
+        super().__init__(conf.pow_on_command, conf)
         self._power_needed = False
 
 
 class OffCommand(BaseSerialCommand):
     def __init__(self, conf: ProjectorStateCommandConfiguration):
-        super().__init__(conf)
-        self._command = conf.pow_off_command
+        super().__init__(conf.pow_off_command, conf)
 
 
 class GetLampStateCommand(BaseSerialCommand):
     def __init__(self, conf: ProjectorStateCommandConfiguration):
-        super().__init__(conf)
-        self._command = conf.pow_state_qry
+        super().__init__(conf.pow_state_qry, conf)
         self._power_needed = False
 
 #

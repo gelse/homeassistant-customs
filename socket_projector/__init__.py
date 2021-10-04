@@ -6,8 +6,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.config_entries import ConfigEntry
 
-from .const import DOMAIN, CONF_TIMEOUT, CONF_BAUDRATE, CONF_SOCKET, CONF_NAME, CONF_ID
-from .hub import Projector, ProjectorConfiguration
+from .const import *
+from .hub import Projector, ProjectorConfiguration, ProjectorStateCommandConfiguration
 
 # List of platforms to support. There should be a matching .py file for each,
 # eg <cover.py> and <sensor.py>
@@ -32,7 +32,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     projector_configuration = ProjectorConfiguration(
         socket_url=entry.data[CONF_SOCKET],
         timeout=entry.data[CONF_TIMEOUT],
-        baudrate=entry.data[CONF_BAUDRATE]
+        baudrate=entry.data[CONF_BAUDRATE],
+        statecommandconfig=ProjectorStateCommandConfiguration(
+            command_template=entry.data[CONF_COMMAND_TEMPLATE],
+            response_template=entry.data[CONF_POW_STATE_TMPL],
+            pow_on_command=entry.data[CONF_POW_ON_CMD],
+            pow_off_command=entry.data[CONF_POW_OFF_CMD],
+            pow_state_query=entry.data[CONF_POW_STATE_QRY],
+            pow_state_on_value=entry.data[CONF_POW_ON_STATE],
+            pow_state_off_value=entry.data[CONF_POW_OFF_STATE]
+        )
     )
 
     hass.data[DOMAIN][entry.entry_id] = Projector(
