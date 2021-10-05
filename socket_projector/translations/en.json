@@ -1,0 +1,27 @@
+{
+  "config": {
+    "flow_title": "Socket projector configuration",
+    "step": {
+      "user": {
+        "data": {
+          "socket": "Serial Socket",
+          "name": "Name",
+          "timeout": "Connection timeout",
+          "baudrate": "Connection baudrate",
+          "conf_flow_details": "Customize details?"
+        }
+      },
+      "user_state": {
+        "data": {
+          "command_template": "Command template",
+          "pow_on_command": "Power ON command",
+          "pow_off_command": "Power OFF command",
+          "pow_state_query": "Lamp state query",
+          "pow_state_template": "Lamp state answer regex",
+          "pow_on_state": "Lamp state ON value",
+          "pow_off_state": "Lamp state OFF value"
+        }
+      }
+    }
+  }
+}

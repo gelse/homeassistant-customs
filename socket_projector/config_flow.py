@@ -104,13 +104,15 @@ class BenqProjectorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user_state(self, user_input: Optional[dict[str, Any]] = None) -> data_entry_flow.FlowResult:
         errors = {}
         if user_input is not None:
+            user_input[CONF_COMMAND_TEMPLATE] = user_input[CONF_COMMAND_TEMPLATE].encode('ascii').decode('unicode_escape')
             final_userinput_dict = {**self.init_info, **user_input}
             _LOGGER.debug('Finished configuration with the following values: \n%s', final_userinput_dict)
             return self.async_create_entry(title=self.init_info['title'], data=final_userinput_dict)
 
         return self.async_show_form(step_id='user_state',
                                     data_schema=vol.Schema({
-                                        vol.Required(CONF_COMMAND_TEMPLATE, default=CONF_STATE_DEFAULTS[CONF_COMMAND_TEMPLATE]): str,
+                                        # TODO build custom function that escapes and un-escapes \r\n\t. do not use repr/strip
+                                        vol.Required(CONF_COMMAND_TEMPLATE, default=repr(CONF_STATE_DEFAULTS[CONF_COMMAND_TEMPLATE]).strip("'")): str,
                                         vol.Required(CONF_POW_ON_CMD, default=CONF_STATE_DEFAULTS[CONF_POW_ON_CMD]): str,
                                         vol.Required(CONF_POW_OFF_CMD, default=CONF_STATE_DEFAULTS[CONF_POW_OFF_CMD]): str,
                                         vol.Required(CONF_POW_STATE_QRY, default=CONF_STATE_DEFAULTS[CONF_POW_STATE_QRY]): str,
