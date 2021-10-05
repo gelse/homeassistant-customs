@@ -93,11 +93,11 @@ class BenqProjectorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id='user',
                                     data_schema=vol.Schema({
-                                        vol.Required(CONF_SOCKET, msg='Socket'): str,
-                                        vol.Optional(CONF_NAME, msg='Name', default='My projector'): str,
-                                        vol.Optional(CONF_BAUDRATE, msg='Baudrate', default=9600): vol.In([2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200]),
-                                        vol.Optional(CONF_TIMEOUT, msg='Timeout', default=1): vol.All(int, vol.Range(1, 10)),
-                                        vol.Optional(CONF_FLOW_COMMAND_SWITCH, msg='Advanced configuration?', default=False): bool
+                                        vol.Required(CONF_SOCKET, default='socket://127.0.0.1:7000'): str,
+                                        vol.Optional(CONF_NAME, default='My projector'): str,
+                                        vol.Optional(CONF_BAUDRATE, default=9600): vol.In([2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200]),
+                                        vol.Optional(CONF_TIMEOUT, default=1): vol.All(int, vol.Range(1, 10)),
+                                        vol.Optional(CONF_FLOW_COMMAND_SWITCH, default=False): bool
                                     }),
                                     errors=errors)
 
@@ -110,13 +110,13 @@ class BenqProjectorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id='user_state',
                                     data_schema=vol.Schema({
-                                        vol.Required(CONF_COMMAND_TEMPLATE, msg='Command template', default=CONF_STATE_DEFAULTS[CONF_COMMAND_TEMPLATE]): str,
-                                        vol.Required(CONF_POW_ON_CMD, msg='Power on command', default=CONF_STATE_DEFAULTS[CONF_POW_ON_CMD]): str,
-                                        vol.Required(CONF_POW_OFF_CMD, msg='Power off command', default=CONF_STATE_DEFAULTS[CONF_POW_OFF_CMD]): str,
-                                        vol.Required(CONF_POW_STATE_QRY, msg='Power state query command.', default=CONF_STATE_DEFAULTS[CONF_POW_STATE_QRY]): str,
-                                        vol.Required(CONF_POW_STATE_TMPL, msg='Power state answer template.', default=CONF_STATE_DEFAULTS[CONF_POW_STATE_TMPL]): str,
-                                        vol.Required(CONF_POW_ON_STATE, msg='Power state ON group value.', default=CONF_STATE_DEFAULTS[CONF_POW_ON_STATE]): str,
-                                        vol.Required(CONF_POW_OFF_STATE, msg='Power state OFF group value.', default=CONF_STATE_DEFAULTS[CONF_POW_OFF_STATE]): str,
+                                        vol.Required(CONF_COMMAND_TEMPLATE, default=CONF_STATE_DEFAULTS[CONF_COMMAND_TEMPLATE]): str,
+                                        vol.Required(CONF_POW_ON_CMD, default=CONF_STATE_DEFAULTS[CONF_POW_ON_CMD]): str,
+                                        vol.Required(CONF_POW_OFF_CMD, default=CONF_STATE_DEFAULTS[CONF_POW_OFF_CMD]): str,
+                                        vol.Required(CONF_POW_STATE_QRY, default=CONF_STATE_DEFAULTS[CONF_POW_STATE_QRY]): str,
+                                        vol.Required(CONF_POW_STATE_TMPL, default=CONF_STATE_DEFAULTS[CONF_POW_STATE_TMPL]): str,
+                                        vol.Required(CONF_POW_ON_STATE, default=CONF_STATE_DEFAULTS[CONF_POW_ON_STATE]): str,
+                                        vol.Required(CONF_POW_OFF_STATE, default=CONF_STATE_DEFAULTS[CONF_POW_OFF_STATE]): str,
                                     }),
                                     errors=errors)
 
