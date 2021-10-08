@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .hub import Projector
-from .const import DOMAIN
+from .const import DOMAIN, LAMP_HOURS
 from homeassistant.const import STATE_UNKNOWN
 
 _executor = ThreadPoolExecutor(10)
@@ -45,6 +45,9 @@ class ConfiguredProjector(SwitchEntity):
     def __init__(self, projector: Projector) -> None:
         self._projector = projector
         self._attr_is_on = False
+        self._attributes = {
+            LAMP_HOURS: STATE_UNKNOWN
+        }
 
     async def async_will_remove_from_hass(self) -> None:
         """Entity being removed from hass."""
@@ -56,6 +59,7 @@ class ConfiguredProjector(SwitchEntity):
         if not self._attr_available:
             self._attr_state = STATE_UNKNOWN
         self._attr_is_on = await self._projector.get_state()
+        self._attributes[LAMP_HOURS] = await self._projector.get_lamp_hours()
         # TODO load further custom attributes
 
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -70,3 +74,13 @@ class ConfiguredProjector(SwitchEntity):
     def unique_id(self) -> str:
         """Return Unique ID string."""
         return self._projector.projector_id
+
+    @property
+    def name(self):
+        """Return name of the projector."""
+        return self._projector.projector_configuration.name
+
+    @property
+    def state_attributes(self):
+        """Return state attributes."""
+        return self._attributes

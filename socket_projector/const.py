@@ -42,4 +42,29 @@ LAMP_MODE: Final = 'Lamp Mode',
 VOLUME: Final = 'Volume',
 MUTED: Final = 'Muted'
 
-CUSTOM_ATTRIBUTES: Final = [LAMP_HOURS, INPUT_SOURCE, MODEL, LAMP_MODE, VOLUME, MUTED]
+CUSTOM_ATTRIBUTES: Final = {
+    LAMP_HOURS: {
+        'command': 'ltim=?',
+        'template': r'\*LTIM=(\d+)#'
+    },
+    INPUT_SOURCE: {
+        'command': 'sour=?',
+        'template': r'\*SOUR=(\w+)#'
+    },
+    MODEL: {
+        'command': 'modelname=?',
+        'template': r'\*MODELNAME=(\w+)#'
+    },
+    LAMP_MODE: {
+        'command': 'lampm=?',
+        'template': r'\*LAMPM=(\w+)#'
+    },
+    VOLUME: {
+        'command': 'vol=?',
+        'template': r'\*VOL=(\d+)#'
+    },
+    MUTED: {
+        'command': 'mute=?',
+        'template': r'\*MUTE=(ON|OFF)#'
+    }
+}

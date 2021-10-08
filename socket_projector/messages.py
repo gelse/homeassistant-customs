@@ -1,27 +1,36 @@
-import sys
 import re
+import sys
+from abc import ABC
+from logging import Logger
+from typing import Optional, AnyStr, Union, Pattern
 
 from serial import Serial, SerialException
-from logging import Logger
-from typing import Optional, List, AnyStr, Union
-from abc import ABC
+
+
+class AttributeCommandConfiguration:
+    attribute_command: str
+    attribute_template: str
+
+    def __init__(self,
+                 attribute_command: str,
+                 attribute_template: str):
+        self.attribute_command = attribute_command
+        self.attribute_template = attribute_template
 
 
 class ProjectorCommandConfiguration(ABC):
     command_template: str
-    response_template: str
 
     def __init__(self,
-                 command_template: str,
-                 response_template: str):
+                 command_template: str):
         self.command_template = command_template
-        self.response_template = response_template
 
 
 class ProjectorStateCommandConfiguration(ProjectorCommandConfiguration):
     pow_on_command: str
     pow_off_command: str
     pow_state_qry: str
+    response_template: str
     pow_state_on_value: str
     pow_state_off_value: str
 
@@ -33,20 +42,32 @@ class ProjectorStateCommandConfiguration(ProjectorCommandConfiguration):
                  pow_state_query: str,
                  pow_state_on_value: str,
                  pow_state_off_value: str):
-        super().__init__(command_template, response_template)
+        super().__init__(command_template)
         self.pow_on_command = pow_on_command
         self.pow_off_command = pow_off_command
         self.pow_state_qry = pow_state_query
+        self.response_template = response_template
         self.pow_state_on_value = pow_state_on_value
         self.pow_state_off_value = pow_state_off_value
 
 
+class ProjectorAttributesCommandConfiguration(ProjectorCommandConfiguration):
+    attr_lamphours_config: AttributeCommandConfiguration
+
+    def __init__(self,
+                 command_template: str,
+                 attr_lamphours_config: AttributeCommandConfiguration):
+        super().__init__(command_template)
+        self.attr_lamphours_config = attr_lamphours_config
+
+
 class BaseSerialCommand(ABC):
-    _command_configuration: ProjectorCommandConfiguration
+    _command_configuration: Union[ProjectorCommandConfiguration, ProjectorAttributesCommandConfiguration]
     _command: str
     _logger: Optional[Logger]
     _answer: Optional[str]
     _power_needed: bool
+    _answer_template: Pattern[AnyStr]
 
     class PrintLogger:
         def __print__(self, message: str, *args):
@@ -68,21 +89,21 @@ class BaseSerialCommand(ABC):
 
     def __init__(self,
                  command: str,
-                 command_configuration: ProjectorCommandConfiguration):
+                 response_template: str,
+                 command_configuration: ProjectorCommandConfiguration,
+                 logger: Optional[Logger] = None):
         self._command_configuration = command_configuration
         self._command = command
-        self._logger = None
+        self._logger = logger
         self._answer = None
         self._power_needed = True
-        self._answer_template = re.compile(command_configuration.response_template)
+        if self._logger is not None:
+            self._logger.debug('Creating command %s with query %s and pattern %s', type(self).__name__, repr(self._command), repr(response_template))
+        self._answer_template = re.compile(response_template)
 
     @property
     def logger(self) -> Union[Logger, PrintLogger]:
         return self._logger or BaseSerialCommand.PrintLogger()
-
-    @logger.setter
-    def logger(self, value: Logger):
-        self._logger = value
 
     @property
     def answer(self) -> str:
@@ -113,11 +134,12 @@ class BaseSerialCommand(ABC):
 
             match = self._answer_template.match(raw_answer)
             if match:
-                self.logger.debug("match found!")
+                self.logger.debug('match found!')
                 self._answer = match.group(1)
-                self.logger.debug("match saved: %s", self._answer)
+                self.logger.debug('match saved: %s', self._answer)
                 return True
             else:
+                self.logger.debug('Could not find match for %s with pattern %s', raw_answer, self._answer_template)
                 self._answer = raw_answer
                 return False
         except SerialException as serialException:
@@ -132,59 +154,27 @@ class BaseSerialCommand(ABC):
 
 
 class OnCommand(BaseSerialCommand):
-    def __init__(self, conf: ProjectorStateCommandConfiguration):
-        super().__init__(conf.pow_on_command, conf)
+    def __init__(self, conf: ProjectorStateCommandConfiguration, logger: Optional[Logger] = None):
+        super().__init__(conf.pow_on_command, conf.response_template, conf, logger)
         self._power_needed = False
 
 
 class OffCommand(BaseSerialCommand):
-    def __init__(self, conf: ProjectorStateCommandConfiguration):
-        super().__init__(conf.pow_off_command, conf)
+    def __init__(self, conf: ProjectorStateCommandConfiguration, logger: Optional[Logger] = None):
+        super().__init__(conf.pow_off_command, conf.response_template, conf, logger)
 
 
 class GetLampStateCommand(BaseSerialCommand):
-    def __init__(self, conf: ProjectorStateCommandConfiguration):
-        super().__init__(conf.pow_state_qry, conf)
+    def __init__(self, conf: ProjectorStateCommandConfiguration, logger: Optional[Logger] = None):
+        super().__init__(conf.pow_state_qry, conf.response_template, conf, logger)
         self._power_needed = False
 
-#
-# class GetLampHoursCommand(BaseSerialCommand):
-#     def __init__(self):
-#         super().__init__()
-#         self._command = "ltim=?"
-#         self.__add_expected_regex(r'LTIM=(\d+)')
-#         self._power_needed = False
-#
-#
-# class GetInputSourceCommand(BaseSerialCommand):
-#     def __init__(self):
-#         super().__init__()
-#         self._command = "sour=?"
-#         self.__add_expected_regex(r'SOUR=(\w+)')
-#
-#
-# class GetLampModeCommand(BaseSerialCommand):
-#     def __init__(self):
-#         super().__init__()
-#         self._command = "lampm=?"
-#         self.__add_expected_regex(r'LAMPM=(\w+)')
-#
-#
-# class GetModelNameCommand(BaseSerialCommand):
-#     def __init__(self):
-#         super().__init__()
-#         self._command = "modelname=?"
-#         self.__add_expected_regex(r'MODELNAME=(\w+)')
-#         self._power_needed = False
-#
-#
-# class GetMuteStateCommand(BaseSerialCommand):
-#     def __init__(self):
-#         super().__init__()
-#         self._command = "mute=?"
-#         self._power_needed = False
-#         self.__add_expected_regex(r'MUTE=(ON|OFF)')
-#
+
+class GetLampHoursCommand(BaseSerialCommand):
+    def __init__(self, conf: ProjectorAttributesCommandConfiguration, logger: Optional[Logger] = None):
+        super().__init__(conf.attr_lamphours_config.attribute_command, conf.attr_lamphours_config.attribute_template, conf, logger)
+        self._power_needed = False
+
 #
 # class MuteOnCommand(BaseSerialCommand):
 #     def __init__(self):

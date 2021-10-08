@@ -6,26 +6,36 @@ from typing import Optional, Union
 
 from serial import Serial
 
-from .messages import GetLampStateCommand, OnCommand, OffCommand
-from .messages import ProjectorStateCommandConfiguration
+from .messages import GetLampStateCommand, OnCommand, OffCommand, GetLampHoursCommand
+from .messages import ProjectorStateCommandConfiguration, ProjectorAttributesCommandConfiguration
 
 
 class ProjectorConfiguration:
+    __name: str
     __socket_url: str
     __timeout: int
     __baudrate: int
     __statecommandconfig: ProjectorStateCommandConfiguration
+    __attributecommandconfig: ProjectorAttributesCommandConfiguration
 
     def __init__(self,
+                 name: str,
                  socket_url: str,
                  timeout: int,
                  baudrate: int,
-                 statecommandconfig: ProjectorStateCommandConfiguration) -> None:
+                 statecommandconfig: ProjectorStateCommandConfiguration,
+                 attributecommandconfig: ProjectorAttributesCommandConfiguration) -> None:
+        self.__name = name
         self.__socket_url = socket_url
         self.__timeout = timeout
         self.__write_timeout = timeout
         self.__baudrate = baudrate
         self.__statecommandconfig = statecommandconfig
+        self.__attributecommandconfig = attributecommandconfig
+
+    @property
+    def name(self) -> str:
+        return self.__name
 
     @property
     def socketurl(self) -> str:
@@ -46,6 +56,10 @@ class ProjectorConfiguration:
     @property
     def statecommandconfig(self):
         return self.__statecommandconfig
+
+    @property
+    def attributecommandconfig(self):
+        return self.__attributecommandconfig
 
 
 class Projector:
@@ -85,8 +99,7 @@ class Projector:
 
     async def get_state(self) -> Optional[bool]:
         self.__logger.debug("Called get_state.")
-        cmd = GetLampStateCommand(self.projector_configuration.statecommandconfig)
-        cmd.logger = self.__logger
+        cmd = GetLampStateCommand(self.projector_configuration.statecommandconfig, self.__logger)
         if not cmd.execute(self.ser):
             self.__logger.error("Error while getting Lamp state.")
         if cmd.answer == self.projector_configuration.statecommandconfig.pow_state_on_value:
@@ -95,11 +108,21 @@ class Projector:
             return False
         return None
 
+    async def get_lamp_hours(self) -> int:
+        self.__logger.debug("Called get_attribute_values.")
+        cmd = GetLampHoursCommand(self.projector_configuration.attributecommandconfig, self.__logger)
+        if not cmd.execute(self.ser):
+            self.__logger.error("Error while getting Lamp hours.")
+        try:
+            return int(cmd.answer)
+        except:
+            self.__logger.exception("Error when converting %s to integer.", cmd.answer)
+            return -1
+
     async def turn_on(self) -> bool:
         """Turn the projector on."""
         self.__logger.debug("Called turn_on.")
-        cmd = OnCommand(self.projector_configuration.statecommandconfig)
-        cmd.logger = self.__logger
+        cmd = OnCommand(self.projector_configuration.statecommandconfig, self.__logger)
         if not cmd.execute(self.ser):
             self.__logger.error("Error while turning beamer on.")
             return False
@@ -108,8 +131,7 @@ class Projector:
     async def turn_off(self) -> bool:
         """Turn the projector off."""
         self.__logger.debug("Called turn_off.")
-        cmd = OffCommand(self.projector_configuration.statecommandconfig)
-        cmd.logger = self.__logger
+        cmd = OffCommand(self.projector_configuration.statecommandconfig, self.__logger)
         if not cmd.execute(self.ser):
             self.__logger.error("Error while turning beamer off.")
             return False
